@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loot &amp; Drop Lab // loot-lab.slippylabs.com</title>
+<meta name="description" content="Build weighted drop tables with nested sub-tables and pity timers, and see the real numbers — exact drop rates, expected pulls, chance by pull N, and a Monte Carlo run that agrees. Runs entirely in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://loot-lab.slippylabs.com/">
+<meta property="og:title" content="Loot &amp; Drop Lab // loot-lab.slippylabs.com">
+<meta property="og:description" content="Build weighted drop tables with nested sub-tables and pity timers, and see the real numbers — exact drop rates, expected pulls, chance by pull N, and a Monte Carlo run that agrees. Runs entirely in your browser.">
+<meta property="og:image" content="https://loot-lab.slippylabs.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Loot &amp; Drop Lab // loot-lab.slippylabs.com">
+<meta name="twitter:description" content="Build weighted drop tables with nested sub-tables and pity timers, and see the real numbers — exact drop rates, expected pulls, chance by pull N, and a Monte Carlo run that agrees. Runs entirely in your browser.">
+<meta name="twitter:image" content="https://loot-lab.slippylabs.com/og-image.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2234%22%20r%3D%2222%22%20fill%3D%22%231c8a52%22%20stroke%3D%22%2339ff8f%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2216%22%20r%3D%228%22%20fill%3D%22%231c8a52%22%20stroke%3D%22%2339ff8f%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2244%22%20cy%3D%2216%22%20r%3D%228%22%20fill%3D%22%231c8a52%22%20stroke%3D%22%2339ff8f%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E">
+<meta name="theme-color" content="#050b10">
+<link rel="stylesheet" href="style.css?v=1">
+<script>/* perf-lite: drop blend/blur effects on low-power devices. ?fx=lite or ?fx=full to override (persisted). */
+(function(){try{var k="slippy-fx",m=location.search.match(/[?&]fx=(lite|full)/),v=m?m[1]:localStorage.getItem(k);if(m)localStorage.setItem(k,v);if(v==="lite"||(v!=="full"&&(navigator.hardwareConcurrency||8)<=2))document.documentElement.classList.add("perf-lite");}catch(e){}})();</script>
+</head>
+<body>
+
+<div class="starfield"></div>
+<div class="scanlines"></div>
+
+<main class="page-wrap">
+  <div class="hud-panel wide">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
+    <div class="callsign-row">
+      <div class="toad-avatar-wrap">
+        <svg class="toad-avatar" width="46" height="46" viewBox="0 0 64 64">
+          <circle cx="32" cy="34" r="22" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="44" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="3.5" fill="#050b10"/>
+          <circle cx="44" cy="16" r="3.5" fill="#050b10"/>
+          <ellipse cx="24" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <ellipse cx="40" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <circle cx="24" cy="30" r="1.4" fill="#39ff8f"/>
+          <circle cx="40" cy="30" r="1.4" fill="#39ff8f"/>
+          <path d="M22 42 Q32 48 42 42" stroke="#050b10" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="lock-reticle"></div>
+      </div>
+      <span class="callsign">Workshop Division // Tool</span>
+      <div class="nav-links">
+        <a href="https://projects.slippylabs.com/" class="logout-link">← Archive</a>
+      </div>
+    </div>
+
+
+    <h1>LOOT &amp; DROP LAB</h1>
+    <p class="subtitle">A 0.6% drop rate sounds generous until you work out that half your players will not have seen it after a hundred and fifteen tries. Every number here is computed exactly and then checked against a simulation of the same table, live, on the page.</p>
+
+    <h2 class="ll-h2">The table</h2>
+    <div class="net-table-wrap">
+      <table class="net-table ll-table" id="entry-table">
+        <thead>
+          <tr><th>Item</th><th>Weight</th><th>Chance</th><th>Qty min</th><th>Qty max</th><th>Value each</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="tool-controls">
+      <button class="tool-btn" id="add-btn">Add row</button>
+      <button class="tool-btn ghost" data-preset="arpg">Preset: ARPG chest</button>
+      <button class="tool-btn ghost" data-preset="gacha">Preset: gacha banner</button>
+      <button class="tool-btn ghost" data-preset="nested">Preset: nested tables</button>
+    </div>
+    <p class="tool-note" id="table-note"></p>
+
+    <h2 class="ll-h2">Pulls and pity</h2>
+    <div class="two-col ll-controls">
+      <div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="target-select">Track this item</label>
+          <select class="tool-select" id="target-select"></select>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="pulls-input">Pulls to look at</label>
+          <input class="tool-number-input" id="pulls-input" type="number" value="100" min="1" max="5000" step="10">
+        </div>
+        <div class="tool-checks">
+          <label class="tool-check"><input type="checkbox" id="pity-check"> Pity timer</label>
+        </div>
+      </div>
+      <div id="pity-panel" class="hidden">
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="hard-input">Hard pity — guaranteed on pull</label>
+          <input class="tool-number-input" id="hard-input" type="number" value="90" min="2" max="1000" step="1">
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="soft-input">Soft pity starts at pull</label>
+          <input class="tool-number-input" id="soft-input" type="number" value="74" min="1" max="1000" step="1">
+        </div>
+        <p class="tool-note">Below the soft pity the base rate applies. From there it ramps straight up to a certainty at the hard pity — the shape most published banners actually use.</p>
+      </div>
+    </div>
+
+    <h2 class="ll-h2">What that means</h2>
+    <div class="net-grid">
+      <div class="net-tile"><div class="net-tile-label">Per-pull chance</div><div class="net-tile-value" id="stat-rate">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Average pulls</div><div class="net-tile-value" id="stat-mean">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Median pulls</div><div class="net-tile-value" id="stat-median">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Unlucky 10% need</div><div class="net-tile-value" id="stat-p90">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Chance by pull N</div><div class="net-tile-value" id="stat-byn">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Value per pull</div><div class="net-tile-value" id="stat-ev">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Std deviation</div><div class="net-tile-value" id="stat-sd">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Effective rate</div><div class="net-tile-value" id="stat-effective">—</div></div>
+    </div>
+    <p class="tool-note" id="summary-note"></p>
+
+    <h2 class="ll-h2">How many you will have after <span id="copies-n">100</span> pulls</h2>
+    <div class="ll-copies" id="copies-row"></div>
+    <p class="tool-note" id="copies-note"></p>
+
+    <h2 class="ll-h2">Chance of having it by pull N</h2>
+    <div class="ll-chart-wrap">
+      <canvas id="chart" width="880" height="320"></canvas>
+    </div>
+    <p class="tool-note">The solid line is the exact probability. The dots are a Monte Carlo run of the same table — they are computed by actually pulling, so where they sit on the line is the check.</p>
+
+    <h2 class="ll-h2">Exact against simulated</h2>
+    <div class="net-table-wrap">
+      <table class="net-table" id="mc-table">
+        <thead><tr><th>Item</th><th>Exact</th><th>Simulated</th><th>Difference</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="tool-controls">
+      <div class="tool-field-row ll-inline">
+        <label class="tool-field-label" for="trials-input">Trials</label>
+        <input class="tool-number-input" id="trials-input" type="number" value="200000" min="1000" max="2000000" step="1000">
+      </div>
+      <button class="tool-btn" id="run-btn">Run simulation</button>
+      <button class="tool-btn ghost" id="json-btn">Download table</button>
+      <button class="tool-btn ghost" id="code-btn">Copy roll function</button>
+      <a id="download-link" hidden></a>
+    </div>
+    <div class="copy-toast" id="toast">Copied</div>
+    <p class="tool-note" id="mc-note" role="status"></p>
+    <div class="comm-window">
+      <div class="comm-portrait">
+        <svg width="36" height="36" viewBox="0 0 64 64">
+          <circle cx="32" cy="34" r="22" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="44" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="3.5" fill="#050b10"/>
+          <circle cx="44" cy="16" r="3.5" fill="#050b10"/>
+          <ellipse cx="24" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <ellipse cx="40" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <circle cx="24" cy="30" r="1.4" fill="#39ff8f"/>
+          <circle cx="40" cy="30" r="1.4" fill="#39ff8f"/>
+          <path d="M22 42 Q32 48 42 42" stroke="#050b10" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="comm-body">
+        <div class="comm-label"><span class="dot"></span> Incoming Transmission &mdash; Slippy</div>
+        <p>&quot;The median player is not the average player, and the difference is where the complaints come from.&quot;</p>
+      </div>
+    </div>
+
+    <a href="https://projects.slippylabs.com/" class="hud-btn">← Back to Archive</a>
+  </div>
+</main>
+
+
+<script>
+/* ---- Drop tables ---------------------------------------------------------------
+   A table is a list of entries with weights. An entry either is an item or is
+   another table, and the probability of reaching a leaf is the product of the
+   probabilities along the way. That is the whole model, and everything below is
+   arithmetic on it.
+
+   The page computes each number in closed form and then runs a simulation of
+   the same table beside it. Not because the closed form is in doubt, but
+   because a drop table is the kind of thing people do not believe until they
+   have watched it happen. */
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function totalWeight(entries) {
+  let sum = 0;
+  for (const e of entries) sum += Math.max(0, e.weight);
+  return sum;
+}
+
+/* Flatten a table, nesting and all, into leaves with absolute probabilities.
+   Depth is capped rather than trusted: a table that contains itself is a
+   config file away, and an unbounded recursion here would hang the tab. */
+function flatten(entries, prefixProbability = 1, depth = 0, out = []) {
+  if (depth > 8) return out;
+  const total = totalWeight(entries);
+  if (total <= 0) return out;
+  for (const e of entries) {
+    const p = (Math.max(0, e.weight) / total) * prefixProbability;
+    if (p <= 0) continue;
+    if (e.table && e.table.length) flatten(e.table, p, depth + 1, out);
+    else out.push({ name: e.name, probability: p, qtyMin: e.qtyMin, qtyMax: e.qtyMax, value: e.value, rarity: e.rarity });
+  }
+  return out;
+}
+
+/* One roll: a single uniform draw walked down the cumulative weights. */
+function rollOnce(entries, rnd, depth = 0) {
+  if (depth > 8) return null;
+  const total = totalWeight(entries);
+  if (total <= 0) return null;
+  let x = rnd() * total;
+  for (const e of entries) {
+    x -= Math.max(0, e.weight);
+    if (x < 0) {
+      if (e.table && e.table.length) return rollOnce(e.table, rnd, depth + 1);
+      return e;
+    }
+  }
+  return entries[entries.length - 1];
+}
+
+/* ---- Pity ---------------------------------------------------------------------
+   The per-pull chance is not one number once a pity timer exists: it depends on
+   how long it has been since the last hit. Below the soft pity it is the base
+   rate; from there it rises in a straight line to a certainty at the hard pity.
+
+   rates[k] is the chance of hitting on the k-th pull since the last hit,
+   counting from 1. rates[hardPity] is exactly 1 by construction, which is what
+   makes every series below finite. */
+function pityRates(baseRate, softPity, hardPity) {
+  const hard = Math.max(1, Math.round(hardPity));
+  const soft = Math.max(1, Math.min(hard, Math.round(softPity)));
+  const rates = new Array(hard + 1).fill(0);
+  for (let k = 1; k <= hard; k++) {
+    if (k < soft) rates[k] = baseRate;
+    else if (k >= hard) rates[k] = 1;
+    else {
+      /* Straight line from the base rate at the soft pity to 1 at the hard
+         pity. The denominator is (hard - soft), not (hard - soft + 1): at
+         k = hard the ramp must have reached exactly 1, and off-by-one here
+         leaves a banner that can miss its own guarantee. */
+      const span = Math.max(1, hard - soft);
+      rates[k] = Math.min(1, baseRate + (1 - baseRate) * ((k - soft + 1) / span));
+    }
+  }
+  rates[hard] = 1;
+  return rates;
+}
+
+/* Without a pity timer the chance is the same every pull, and the series is
+   geometric; with one it is finite. Both are the same expression over a rates
+   array, so there is only one code path to get wrong. */
+function flatRates(baseRate, horizon) {
+  const rates = new Array(horizon + 1).fill(baseRate);
+  rates[0] = 0;
+  return rates;
+}
+
+/* P(the first hit is on pull k) and its cumulative. */
+function pullDistribution(rates) {
+  const pmf = new Array(rates.length).fill(0);
+  const cdf = new Array(rates.length).fill(0);
+  let miss = 1;
+  let mean = 0;
+  let second = 0;
+  for (let k = 1; k < rates.length; k++) {
+    pmf[k] = miss * rates[k];
+    miss *= 1 - rates[k];
+    cdf[k] = 1 - miss;
+    mean += k * pmf[k];
+    second += k * k * pmf[k];
+  }
+  const tail = miss;                    /* probability of no hit in the horizon */
+  return { pmf, cdf, mean, variance: second - mean * mean, tail };
+}
+
+function quantile(cdf, q) {
+  for (let k = 1; k < cdf.length; k++) if (cdf[k] >= q) return k;
+  return null;
+}
+
+/* ---- Copies in N pulls ---------------------------------------------------------
+   With a pity timer the pulls between hits are not independent, so "how many
+   will I have after N pulls" is a renewal process rather than a binomial. It is
+   still exact: carry the joint distribution over (pity counter, copies so far)
+   forward one pull at a time. */
+function copiesDistribution(rates, pulls, maxCopies = 12) {
+  const hard = rates.length - 1;
+  const cap = Math.max(1, maxCopies);
+  /* state[counter][copies] -- counter is pulls since the last hit. */
+  let state = Array.from({ length: hard + 1 }, () => new Float64Array(cap + 1));
+  state[0][0] = 1;
+  /* The top bucket is "cap or more", so reading the mean back off the pmf
+     would undercount whatever piled up there. The expected number of hits is
+     just the sum over pulls of the chance of hitting on that pull, which is
+     accumulated here and is exact however low the cap is set. */
+  let mean = 0;
+  for (let pull = 0; pull < pulls; pull++) {
+    const next = Array.from({ length: hard + 1 }, () => new Float64Array(cap + 1));
+    for (let c = 0; c <= hard; c++) {
+      for (let copies = 0; copies <= cap; copies++) {
+        const p = state[c][copies];
+        if (p === 0) continue;
+        const k = Math.min(hard, c + 1);
+        const hit = rates[k];
+        if (hit > 0) { next[0][Math.min(cap, copies + 1)] += p * hit; mean += p * hit; }
+        if (hit < 1) next[k][copies] += p * (1 - hit);
+      }
+    }
+    state = next;
+  }
+  const out = new Float64Array(cap + 1);
+  for (let c = 0; c <= hard; c++) for (let copies = 0; copies <= cap; copies++) out[copies] += state[c][copies];
+  return { pmf: Array.from(out), mean, cap, atLeastCap: out[cap] };
+}
+
+/* ---- Value ---------------------------------------------------------------------
+   Expected value and variance of a single pull, over the flattened leaves.
+   A uniform integer quantity between min and max has mean (a+b)/2 and variance
+   ((b-a+1)^2 - 1)/12; using the continuous 1/12*(b-a)^2 instead is a small
+   error that compounds over a thousand pulls. */
+function valueStats(leaves) {
+  let mean = 0;
+  let second = 0;
+  for (const l of leaves) {
+    const a = Math.min(l.qtyMin, l.qtyMax);
+    const b = Math.max(l.qtyMin, l.qtyMax);
+    const qMean = (a + b) / 2;
+    const qVar = ((b - a + 1) * (b - a + 1) - 1) / 12;
+    const v = l.value;
+    const eX = qMean * v;
+    const eX2 = (qVar + qMean * qMean) * v * v;
+    mean += l.probability * eX;
+    second += l.probability * eX2;
+  }
+  return { mean, variance: Math.max(0, second - mean * mean) };
+}
+
+/* ---- Simulation -----------------------------------------------------------------
+   The same table, pulled for real. Used on the page beside the exact numbers. */
+function simulate(entries, options) {
+  const { trials, target, rates, pulls, seed } = options;
+  const rnd = mulberry32(seed);
+  const counts = new Map();
+  let valueSum = 0;
+  let valueSq = 0;
+  let firstHitSum = 0;
+  let firstHitCount = 0;
+  let byN = 0;
+  const hard = rates.length - 1;
+  let totalRolls = 0;
+
+  for (let t = 0; t < trials; t++) {
+    let counter = 0;
+    let hitAt = 0;
+    for (let pull = 1; pull <= pulls; pull++) {
+      totalRolls++;
+      const k = Math.min(hard, counter + 1);
+      const forced = rates[k] >= 1;
+      let item;
+      if (forced) {
+        item = { name: target };
+        counter = 0;
+      } else {
+        /* The pity ramp raises the chance of the tracked item specifically;
+           everything else keeps its share of what is left. */
+        const boost = rates[k];
+        if (rnd() < boost) { item = { name: target }; counter = 0; }
+        else { item = rollOnceExcluding(entries, target, rnd); counter = k; }
+      }
+      if (item && item.name === target && hitAt === 0) hitAt = pull;
+      const leaf = item;
+      if (leaf && leaf.qtyMin !== undefined) {
+        const q = leaf.qtyMin + Math.floor(rnd() * (leaf.qtyMax - leaf.qtyMin + 1));
+        const v = q * leaf.value;
+        valueSum += v;
+        valueSq += v * v;
+      }
+      counts.set(item.name, (counts.get(item.name) || 0) + 1);
+    }
+    if (hitAt > 0) { firstHitSum += hitAt; firstHitCount++; byN++; }
+  }
+  return {
+    counts, trials, totalRolls,
+    meanFirstHit: firstHitCount ? firstHitSum / firstHitCount : null,
+    chanceByN: byN / trials,
+    valueMean: totalRolls ? valueSum / totalRolls : 0,
+    valueSd: totalRolls ? Math.sqrt(Math.max(0, valueSq / totalRolls - (valueSum / totalRolls) ** 2)) : 0,
+  };
+}
+
+/* Roll, but never return the tracked item -- used when the pity ramp has
+   already decided whether the tracked item drops. */
+function rollOnceExcluding(entries, exclude, rnd, depth = 0) {
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const item = rollOnce(entries, rnd, depth);
+    if (!item || item.name !== exclude) return item;
+  }
+  return rollOnce(entries, rnd, depth);
+}
+
+/* ---- Presets --------------------------------------------------------------------- */
+
+const PRESETS = {
+  arpg: [
+    { name: 'Nothing', weight: 520, qtyMin: 0, qtyMax: 0, value: 0, rarity: 'none' },
+    { name: 'Gold', weight: 300, qtyMin: 40, qtyMax: 180, value: 1, rarity: 'common' },
+    { name: 'Common gear', weight: 120, qtyMin: 1, qtyMax: 1, value: 60, rarity: 'common' },
+    { name: 'Rare gear', weight: 44, qtyMin: 1, qtyMax: 1, value: 420, rarity: 'rare' },
+    { name: 'Epic gear', weight: 14, qtyMin: 1, qtyMax: 1, value: 2400, rarity: 'epic' },
+    { name: 'Legendary', weight: 2, qtyMin: 1, qtyMax: 1, value: 18000, rarity: 'legendary' },
+  ],
+  gacha: [
+    { name: '3-star', weight: 9430, qtyMin: 1, qtyMax: 1, value: 10, rarity: 'common' },
+    { name: '4-star', weight: 510, qtyMin: 1, qtyMax: 1, value: 260, rarity: 'rare' },
+    { name: '5-star', weight: 60, qtyMin: 1, qtyMax: 1, value: 9000, rarity: 'legendary' },
+  ],
+  nested: [
+    { name: 'Nothing', weight: 400, qtyMin: 0, qtyMax: 0, value: 0, rarity: 'none' },
+    {
+      name: 'Currency pouch', weight: 400, rarity: 'common',
+      table: [
+        { name: 'Copper', weight: 70, qtyMin: 10, qtyMax: 60, value: 1, rarity: 'common' },
+        { name: 'Silver', weight: 25, qtyMin: 3, qtyMax: 12, value: 22, rarity: 'common' },
+        { name: 'Gold bar', weight: 5, qtyMin: 1, qtyMax: 2, value: 400, rarity: 'rare' },
+      ],
+    },
+    {
+      name: 'Weapon crate', weight: 180, rarity: 'rare',
+      table: [
+        { name: 'Sword', weight: 40, qtyMin: 1, qtyMax: 1, value: 300, rarity: 'rare' },
+        { name: 'Bow', weight: 40, qtyMin: 1, qtyMax: 1, value: 320, rarity: 'rare' },
+        {
+          name: 'Relic case', weight: 20, rarity: 'epic',
+          table: [
+            { name: 'Relic blade', weight: 3, qtyMin: 1, qtyMax: 1, value: 5200, rarity: 'epic' },
+            { name: 'Relic crown', weight: 1, qtyMin: 1, qtyMax: 1, value: 14000, rarity: 'legendary' },
+          ],
+        },
+      ],
+    },
+    { name: 'Mount token', weight: 20, qtyMin: 1, qtyMax: 1, value: 9000, rarity: 'legendary' },
+  ],
+};
+
+function exportRollFunction(entries) {
+  return `// loot-lab.slippylabs.com — one uniform draw walked down the cumulative
+// weights. Nested tables recurse; weights need not sum to anything in
+// particular, which is the point of weights rather than percentages.
+const TABLE = ${JSON.stringify(entries, null, 2)};
+
+function roll(entries = TABLE, random = Math.random) {
+  let total = 0;
+  for (const e of entries) total += Math.max(0, e.weight);
+  if (total <= 0) return null;
+  let x = random() * total;
+  for (const e of entries) {
+    x -= Math.max(0, e.weight);
+    if (x < 0) {
+      if (e.table && e.table.length) return roll(e.table, random);
+      const span = (e.qtyMax ?? 1) - (e.qtyMin ?? 1) + 1;
+      return { name: e.name, quantity: (e.qtyMin ?? 1) + Math.floor(random() * span) };
+    }
+  }
+  return null;   // only reachable on a NaN weight
+}`;
+}
+
+/* ==== UI ==== */
+
+const $ = (id) => document.getElementById(id);
+
+const RARITY_COLOURS = {
+  none: '#6d7a75', common: '#9fb8a8', rare: '#5aa9ff',
+  epic: '#c77bff', legendary: '#ffb020',
+};
+
+const state = {
+  entries: JSON.parse(JSON.stringify(PRESETS.gacha)),
+  target: '5-star',
+  pulls: 100,
+  pity: false,
+  hardPity: 90,
+  softPity: 74,
+  trials: 200000,
+};
+
+function leaves() { return flatten(state.entries); }
+
+function targetProbability() {
+  const l = leaves().find((x) => x.name === state.target);
+  return l ? l.probability : 0;
+}
+
+function currentRates() {
+  const base = targetProbability();
+  if (!state.pity) return flatRates(base, Math.max(state.pulls * 4, 2000));
+  return pityRates(base, state.softPity, state.hardPity);
+}
+
+/* ---- the table editor ---- */
+
+function renderTable() {
+  const body = $('entry-table').querySelector('tbody');
+  body.textContent = '';
+  const all = leaves();
+  const byName = new Map(all.map((l) => [l.name, l.probability]));
+
+  const addRow = (entry, depth, path) => {
+    const tr = document.createElement('tr');
+    if (depth > 0) tr.classList.add('ll-nested');
+
+    const nameCell = document.createElement('td');
+    const nameInput = document.createElement('input');
+    nameInput.className = 'tool-text-input ll-name';
+    nameInput.value = entry.name;
+    nameInput.style.marginLeft = `${depth * 14}px`;
+    nameInput.setAttribute('aria-label', 'Item name');
+    nameInput.addEventListener('input', () => { entry.name = nameInput.value; refresh(); });
+    const dot = document.createElement('span');
+    dot.className = 'll-dot';
+    dot.style.background = RARITY_COLOURS[entry.rarity] || RARITY_COLOURS.common;
+    nameCell.appendChild(dot);
+    nameCell.appendChild(nameInput);
+    tr.appendChild(nameCell);
+
+    const num = (value, onInput, label, step = 1, min = 0) => {
+      const td = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'tool-number-input ll-num';
+      input.value = String(value);
+      input.step = String(step);
+      input.min = String(min);
+      input.setAttribute('aria-label', label);
+      input.addEventListener('input', () => { onInput(Number(input.value)); refresh(); });
+      td.appendChild(input);
+      return td;
+    };
+
+    tr.appendChild(num(entry.weight, (v) => { entry.weight = v; }, 'Weight'));
+
+    const chanceCell = document.createElement('td');
+    chanceCell.className = 'll-chance';
+    if (entry.table && entry.table.length) {
+      chanceCell.textContent = 'sub-table';
+    } else {
+      const p = byName.get(entry.name) || 0;
+      chanceCell.textContent = p > 0 ? formatPercent(p) : '0';
+    }
+    tr.appendChild(chanceCell);
+
+    if (entry.table && entry.table.length) {
+      for (let i = 0; i < 3; i++) tr.appendChild(document.createElement('td'));
+    } else {
+      tr.appendChild(num(entry.qtyMin, (v) => { entry.qtyMin = v; }, 'Quantity minimum'));
+      tr.appendChild(num(entry.qtyMax, (v) => { entry.qtyMax = v; }, 'Quantity maximum'));
+      tr.appendChild(num(entry.value, (v) => { entry.value = v; }, 'Value each'));
+    }
+
+    const actions = document.createElement('td');
+    const del = document.createElement('button');
+    del.className = 'tool-btn ghost ll-del';
+    del.textContent = '✕';
+    del.setAttribute('aria-label', `Remove ${entry.name}`);
+    del.addEventListener('click', () => {
+      path.splice(path.indexOf(entry), 1);
+      refresh();
+    });
+    actions.appendChild(del);
+    tr.appendChild(actions);
+
+    body.appendChild(tr);
+    if (entry.table) for (const child of entry.table) addRow(child, depth + 1, entry.table);
+  };
+
+  for (const entry of state.entries) addRow(entry, 0, state.entries);
+
+  const total = totalWeight(state.entries);
+  $('table-note').textContent = `${all.length} distinct outcomes; top-level weights sum to ${total}. Weights are relative — they do not have to add up to 100 or to anything else.`;
+}
+
+function formatPercent(p) {
+  if (p >= 0.01) return `${(p * 100).toFixed(2)}%`;
+  if (p >= 0.0001) return `${(p * 100).toFixed(4)}%`;
+  return `${(p * 100).toExponential(2)}%`;
+}
+
+function refreshTargets() {
+  const sel = $('target-select');
+  const previous = state.target;
+  sel.textContent = '';
+  for (const l of leaves()) {
+    const opt = document.createElement('option');
+    opt.value = l.name;
+    opt.textContent = `${l.name} — ${formatPercent(l.probability)}`;
+    sel.appendChild(opt);
+  }
+  if (leaves().some((l) => l.name === previous)) sel.value = previous;
+  else if (leaves().length) { state.target = leaves()[0].name; sel.value = state.target; }
+}
+
+/* ---- results ---- */
+
+function refreshStats() {
+  const base = targetProbability();
+  const rates = currentRates();
+  const dist = pullDistribution(rates);
+  const byN = state.pulls < dist.cdf.length ? dist.cdf[state.pulls] : 1 - dist.tail;
+  const vs = valueStats(leaves());
+
+  $('stat-rate').textContent = formatPercent(base);
+  $('stat-mean').textContent = dist.mean > 0 ? dist.mean.toFixed(1) : '—';
+  const median = quantile(dist.cdf, 0.5);
+  $('stat-median').textContent = median === null ? `over ${dist.cdf.length - 1}` : String(median);
+  const p90 = quantile(dist.cdf, 0.9);
+  $('stat-p90').textContent = p90 === null ? `over ${dist.cdf.length - 1}` : String(p90);
+  $('stat-byn').textContent = `${(byN * 100).toFixed(2)}%`;
+  $('stat-ev').textContent = vs.mean.toFixed(2);
+  $('stat-sd').textContent = Math.sqrt(vs.variance).toFixed(2);
+  $('stat-effective').textContent = dist.mean > 0 ? formatPercent(1 / dist.mean) : '—';
+
+  const medianText = median === null ? 'more pulls than this table can model' : `${median} pulls`;
+  const p90Text = p90 === null ? 'more than the horizon' : `${p90} pulls`;
+  $('summary-note').textContent = state.pity
+    ? `With the pity timer, the advertised ${formatPercent(base)} behaves like ${formatPercent(1 / dist.mean)} over the long run. Half of players get it within ${medianText}; the unluckiest tenth need ${p90Text}, and nobody goes past ${state.hardPity}.`
+    : `At a flat ${formatPercent(base)}, half of players get it within ${medianText} — and the unluckiest tenth are still waiting after ${p90Text}. There is no ceiling: ${((1 - byN) * 100).toFixed(2)}% of players will not have it after ${state.pulls} pulls.`;
+}
+
+let lastSimulation = null;
+
+function refreshCopies() {
+  const rates = currentRates();
+  const dist = copiesDistribution(rates, state.pulls, 12);
+  $('copies-n').textContent = String(state.pulls);
+  const host = $('copies-row');
+  host.textContent = '';
+  let cumulative = 1;
+  const rows = [];
+  for (let c = 0; c <= 5; c++) {
+    rows.push([c, dist.pmf[c] || 0, cumulative]);
+    cumulative -= dist.pmf[c] || 0;
+  }
+  for (const [c, exact, atLeast] of rows) {
+    const tile = document.createElement('div');
+    tile.className = 'net-tile';
+    const label = document.createElement('div');
+    label.className = 'net-tile-label';
+    label.textContent = c === 0 ? 'None' : `${c} or more`;
+    const value = document.createElement('div');
+    value.className = 'net-tile-value';
+    value.textContent = `${((c === 0 ? exact : atLeast) * 100).toFixed(2)}%`;
+    tile.appendChild(label);
+    tile.appendChild(value);
+    host.appendChild(tile);
+  }
+  $('copies-note').textContent = `Expected ${dist.mean.toFixed(2)} copies over ${state.pulls} pulls. These are exact — a pity timer makes the pulls between hits depend on each other, so this is a renewal process rather than a binomial, and it is computed by carrying the joint distribution over (pity counter, copies) forward one pull at a time.`;
+}
+
+function drawChart() {
+  const cv = $('chart');
+  const ctx = cv.getContext('2d');
+  const rates = currentRates();
+  const dist = pullDistribution(rates);
+  const maxN = Math.max(10, Math.min(dist.cdf.length - 1, Math.round(state.pulls * 1.6)));
+
+  ctx.fillStyle = '#04070a';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  const pad = { l: 54, r: 16, t: 16, b: 34 };
+  const W = cv.width - pad.l - pad.r;
+  const H = cv.height - pad.t - pad.b;
+  const X = (n) => pad.l + (n / maxN) * W;
+  const Y = (p) => pad.t + H - p * H;
+
+  ctx.strokeStyle = 'rgba(57,255,143,0.12)';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = 'rgba(160,200,180,0.7)';
+  ctx.font = '11px Consolas, monospace';
+  for (let i = 0; i <= 10; i++) {
+    const y = pad.t + (i / 10) * H;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + W, y); ctx.stroke();
+    ctx.fillText(`${100 - i * 10}%`, 8, y + 4);
+  }
+
+  /* the 50% and 90% guides, which are the numbers people actually care about */
+  for (const [q, label, colour] of [[0.5, 'half of players', 'rgba(255,145,48,0.8)'],
+                                    [0.9, '90%', 'rgba(255,70,85,0.7)']]) {
+    const k = quantile(dist.cdf, q);
+    if (k === null || k > maxN) continue;
+    ctx.strokeStyle = colour;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(X(k), pad.t); ctx.lineTo(X(k), pad.t + H); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = colour;
+    ctx.fillText(`${label}: ${k}`, X(k) + 4, pad.t + 12);
+  }
+
+  ctx.strokeStyle = '#39ff8f';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let n = 0; n <= maxN; n++) {
+    const p = n < dist.cdf.length ? dist.cdf[n] : 1;
+    const x = X(n);
+    const y = Y(p);
+    if (n === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  if (lastSimulation && lastSimulation.curve) {
+    ctx.fillStyle = 'rgba(255,190,80,0.95)';
+    for (const [n, p] of lastSimulation.curve) {
+      if (n > maxN) continue;
+      ctx.beginPath(); ctx.arc(X(n), Y(p), 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = 'rgba(160,200,180,0.75)';
+  ctx.fillText('0', pad.l - 4, cv.height - 12);
+  ctx.fillText(String(maxN), pad.l + W - 18, cv.height - 12);
+  ctx.fillText('pulls', pad.l + W / 2 - 16, cv.height - 12);
+}
+
+function refresh() {
+  renderTable();
+  refreshTargets();
+  refreshStats();
+  refreshCopies();
+  drawChart();
+}
+
+/* ---- simulation ---- */
+
+function runSimulation() {
+  const rates = currentRates();
+  const trials = Math.max(1000, Math.min(2000000, state.trials));
+  const pulls = state.pulls;
+  const t0 = performance.now();
+  const sim = simulate(state.entries, {
+    trials: Math.max(200, Math.round(trials / Math.max(1, pulls))),
+    target: state.target, rates, pulls, seed: 20260920,
+  });
+
+  /* the empirical curve, sampled so the chart is not a solid band of dots */
+  const curve = [];
+  const step = Math.max(1, Math.round(pulls / 24));
+  const rnd = mulberry32(99);
+  const runs = Math.max(400, Math.round(trials / Math.max(1, pulls)));
+  const hits = new Array(pulls + 1).fill(0);
+  const hard = rates.length - 1;
+  for (let t = 0; t < runs; t++) {
+    let counter = 0;
+    for (let pull = 1; pull <= pulls; pull++) {
+      const k = Math.min(hard, counter + 1);
+      if (rnd() < rates[k]) { for (let n = pull; n <= pulls; n++) hits[n]++; break; }
+      counter = k;
+    }
+  }
+  for (let n = step; n <= pulls; n += step) curve.push([n, hits[n] / runs]);
+  sim.curve = curve;
+  lastSimulation = sim;
+
+  const body = $('mc-table').querySelector('tbody');
+  body.textContent = '';
+  const all = leaves();
+  let worst = 0;
+  for (const l of all) {
+    const got = (sim.counts.get(l.name) || 0) / sim.totalRolls;
+    const diff = got - l.probability;
+    if (l.probability > 0.001) worst = Math.max(worst, Math.abs(diff) / l.probability);
+    const tr = document.createElement('tr');
+    for (const text of [l.name, formatPercent(l.probability), formatPercent(got),
+                        `${diff >= 0 ? '+' : ''}${(diff * 100).toFixed(3)} pp`]) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+  drawChart();
+  $('mc-note').textContent = `${sim.totalRolls.toLocaleString('en-GB')} pulls simulated in ${Math.round(performance.now() - t0)} ms. The largest relative gap between the exact rate and the simulated one, over outcomes above 0.1%, is ${(worst * 100).toFixed(2)}%. The pity column is simulated by pulling, not by reading the formula back.`;
+}
+
+/* ---- wiring ---- */
+
+$('add-btn').addEventListener('click', () => {
+  state.entries.push({ name: `Item ${state.entries.length + 1}`, weight: 10, qtyMin: 1, qtyMax: 1, value: 100, rarity: 'common' });
+  refresh();
+});
+
+document.querySelector('.tool-controls').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('[data-preset]');
+  if (!btn) return;
+  state.entries = JSON.parse(JSON.stringify(PRESETS[btn.dataset.preset]));
+  state.target = flatten(state.entries).slice(-1)[0].name;
+  lastSimulation = null;
+  refresh();
+});
+
+$('target-select').addEventListener('change', () => { state.target = $('target-select').value; lastSimulation = null; refresh(); });
+$('pulls-input').addEventListener('input', () => {
+  state.pulls = Math.max(1, Math.min(5000, Number($('pulls-input').value) || 100));
+  lastSimulation = null;
+  refresh();
+});
+$('pity-check').addEventListener('change', () => {
+  state.pity = $('pity-check').checked;
+  $('pity-panel').classList.toggle('hidden', !state.pity);
+  lastSimulation = null;
+  refresh();
+});
+for (const [id, key] of [['hard-input', 'hardPity'], ['soft-input', 'softPity']]) {
+  $(id).addEventListener('input', () => {
+    state[key] = Math.max(1, Number($(id).value) || 1);
+    if (state.softPity > state.hardPity) state.softPity = state.hardPity;
+    lastSimulation = null;
+    refresh();
+  });
+}
+$('trials-input').addEventListener('input', () => { state.trials = Number($('trials-input').value) || 200000; });
+$('run-btn').addEventListener('click', runSimulation);
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1400);
+}
+$('code-btn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(exportRollFunction(state.entries));
+    toast('Copied');
+  } catch (err) { toast('Clipboard blocked'); }
+});
+$('json-btn').addEventListener('click', () => {
+  const payload = {
+    generator: 'loot-lab.slippylabs.com',
+    table: state.entries,
+    outcomes: leaves().map((l) => ({ name: l.name, probability: l.probability, qtyMin: l.qtyMin, qtyMax: l.qtyMax, value: l.value })),
+    pity: state.pity ? { softPity: state.softPity, hardPity: state.hardPity } : null,
+    valuePerPull: valueStats(leaves()),
+  };
+  const link = $('download-link');
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  link.href = url;
+  link.download = 'loot-table.json';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+});
+
+window.__loot = {
+  flatten, rollOnce, totalWeight, pityRates, flatRates, pullDistribution, quantile,
+  copiesDistribution, valueStats, simulate, exportRollFunction, PRESETS, mulberry32,
+  set(opts) { Object.assign(state, opts); $('pity-check').checked = state.pity;
+    $('pity-panel').classList.toggle('hidden', !state.pity);
+    $('pulls-input').value = String(state.pulls); refresh(); return { ...state }; },
+  load(name) { state.entries = JSON.parse(JSON.stringify(PRESETS[name]));
+    state.target = flatten(state.entries).slice(-1)[0].name; refresh(); return leaves(); },
+  run() { runSimulation(); return lastSimulation; },
+  get leaves() { return leaves(); },
+  get rates() { return currentRates(); },
+  get state() { return { ...state }; },
+};
+
+/* ---- boot ---- */
+refresh();
+</script>
+<!-- Slippy Deck: floating Slippy TV + jukebox player. Renders nothing unless admin.slippylabs.com/whoami confirms a signed-in account. -->
+<script defer src="https://slippylabs.com/deck/deck.js"></script>
+<!-- Slippy Labs sitewide privacy link. Self-contained on purpose: these sites
+     share no CSS, so it carries its own styles and inherits the page's text
+     colour instead of assuming a palette. position/z-index are load bearing --
+     the HUD theme's .starfield/.scanlines are fixed at z-index 0-1 and would
+     paint straight over an unpositioned footer.
+     The .page-wrap trim below is what keeps the bar on the first screen. -->
+<div class="sl-legal"><a href="https://slippylabs.com/privacy.html">Privacy</a></div>
+<style>
+.sl-legal{box-sizing:border-box;position:relative;z-index:3;height:64px;display:flex;align-items:center;justify-content:center;margin:0;padding:0 12px;font-family:"Consolas","SFMono-Regular",Menlo,Monaco,"Courier New",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.5}
+.sl-legal a{color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px}
+.sl-legal a:hover,.sl-legal a:focus-visible{text-decoration:underline;opacity:1}
+/* This page centres .page-wrap at min-height:100vh, which would push the bar a
+   whole screen below the fold. Give back exactly the bar height instead of
+   adding a scrollbar to a page that had none. */
+.page-wrap{min-height:calc(100vh - 64px)}
+</style>
+</body>
+</html>
